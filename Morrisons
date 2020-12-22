@@ -1,0 +1,69 @@
+from selenium import webdriver
+import datetime
+import csv, re, time
+
+driver = webdriver.Chrome(executable_path="c:\selenium\chromedriver.exe")
+urls_m = ['https://groceries.morrisons.com/browse/beer-wines-spirits-103120/spirits-liqueurs-105916',
+           'https://groceries.morrisons.com/browse/beer-wines-spirits-103120/wine-champagne-176432',
+           'https://groceries.morrisons.com/browse/beer-wines-spirits-103120/beer-150066',
+           'https://groceries.morrisons.com/browse/beer-wines-spirits-103120/craft-beer-178770',
+           'https://groceries.morrisons.com/browse/beer-wines-spirits-103120/ales-stouts-161710',
+           'https://groceries.morrisons.com/browse/beer-wines-spirits-103120/lager-161713',
+           'https://groceries.morrisons.com/browse/beer-wines-spirits-103120/cider-150057']
+
+for url_m in urls_m:
+    filename = re.search(r"(?<=103120\/).*(?=\-\d*)", url_m)
+    f = csv.writer(open("morrisons_" + filename.group() + "_" + datetime.date.today().strftime("%Y%m%d") + ".csv", "w" , newline="", encoding='utf-8'))
+    f.writerow(['Name','Price per Unit','Price per Measure','Promo','Stock'])
+    driver.get(url_m)
+    if len(driver.find_elements_by_xpath("//button[contains(@class, 'cd-cookieDisclaimer__close')]")) > 0:
+        cookie_button = driver.find_elements_by_xpath("//button[contains(@class, 'cd-cookieDisclaimer__close')]")[0]
+        cookie_button.click()
+    time.sleep(3)
+    driver.execute_script("window.scrollTo(0, 500)")
+    elements = driver.find_elements_by_xpath("//ul[contains (@class, 'fops-shelf')]/li[contains (@class, 'fops-item')]")
+    element_no = len(elements)
+    i = 0
+    while i < element_no:
+        driver.execute_script("arguments[0].scrollIntoView();", elements[i])
+        time.sleep(1)
+        for x in range(i, i + 5):
+            element = elements[x]
+            if (len(element.find_elements_by_xpath(".//h4[contains (@class, 'fop-title')]/span[1]")) > 0):
+                if (len(element.find_elements_by_xpath(".//span[contains (@class, 'fop-catch-weight')]")) > 0):
+                    sku_name = element.find_element_by_xpath(".//h4[contains (@class, 'fop-title')]/span[1]").text + " " + element.find_element_by_xpath(".//span[contains (@class, 'fop-catch-weight')]").get_attribute("innerText")
+                else:
+                    sku_name = element.find_element_by_xpath(".//h4[contains (@class, 'fop-title')]/span[1]").text
+            else:
+                sku_name = ""
+            if (len(element.find_elements_by_xpath(".//a[contains(@class, 'promotion-offer')]")) > 0):
+                promo_type = element.find_element_by_xpath(".//a[contains(@class, 'promotion-offer')]/span").text
+            else:
+                promo_type = ""
+            if (len(element.find_elements_by_xpath(".//span[contains(@class, 'fop-price')]")) > 0):
+                ppu = element.find_element_by_xpath(".//span[contains(@class, 'fop-price')]").text
+            else:
+                ppu = ""
+            if (len(element.find_elements_by_xpath(".//span[contains(@class, 'fop-unit-price')]")) > 0):
+                ppl = element.find_element_by_xpath(".//span[contains(@class, 'fop-unit-price')]").text
+            else:
+                ppl = ""
+            if len(element.find_elements_by_xpath(".//div[contains(@class, 'fop-out-of-stock')]")) > 0:
+                stock = "Out of stock"
+            else:
+                stock = "In stock"
+            f.writerow([sku_name, ppu, ppl, promo_type, stock])
+            if x == element_no - 1:
+                break
+
+        if i > element_no - 5:
+            if len(driver.find_elements_by_xpath("//button[contains (@class, 'show-more')]")) > 0:
+                more_button = driver.find_element_by_xpath("//button[contains (@class, 'show-more')]")
+                more_button.click()
+                time.sleep(2)
+                elements = driver.find_elements_by_xpath("//ul[contains (@class, 'fops-shelf')]/li[contains (@class, 'fops-item')]")
+                element_no = len(elements)
+
+        i += 5
+driver.close()
+
